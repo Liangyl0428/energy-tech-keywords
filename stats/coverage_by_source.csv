@@ -1,4 +1,0 @@
-﻿source,window,total_docs,covered_docs,hit_rate,note
-paper,2021-01-01~2026-12-31,1754330,1496283,0.8529,"works 表，is_retracted=false；分年合计 1,754,330，与 docs/覆盖统计.md 的 1,754,329 差 1 篇（库版本微调）"
-patent,2021~2026,538066,418978,0.7787,按 publication_number 全局去重；2026 仅 1–5 月完整，收录口径与往年不同
-policy,2000~2026,6621,5519,0.8336,政策全文.jsonl 含正文记录；2026 截至 2026-09，另 61 条无日期

@@ -1,47 +1,79 @@
 # 基础数据统计（stats/）
 
-本目录存放**能对应到具体技术词**的论文 / 专利 / 政策文档的覆盖统计，是
-[docs/覆盖统计.md](../docs/覆盖统计.md) 的机器可读版本与分年明细。
+统计对象：**能对应到具体技术词**的论文 / 专利 / 政策——即标题（论文、专利为标题+摘要，政策为正文）
+至少命中本仓库 `subtopics/` 词典（33 个子方向、1,811 个词条）中任一词条的文档。
+范围与 [docs/覆盖统计.md](../docs/覆盖统计.md) 的"命中文档"一致。
 
-## 口径
+本次统计（2026-10-31）：**论文 1,496,283 篇、专利 418,978 件、政策 5,519 条**命中词典。
 
-- **词表**：本仓库 `subtopics/` 下 33 个 CSV，共 1,811 个词条（中文官方名、英文官方名、别称/简称）。
-- **匹配**：与 `energy-topic-hotspots` 的 `src/energy_hotspots/term_hotspots/extract_counts.py` 同一实现——
-  词条级 Aho-Corasick、父子词条最长匹配抑制、短缩略语大小写敏感（CO ≠ Co）、英文复数与分隔符归一。
-- **命中 / 覆盖**：文档的标题（论文为标题+摘要，专利为标题+摘要，政策为正文）中至少出现该词条任一变体；
-  一篇文档对同一词条至多计 1 次。
-- 覆盖率的分母是该年度该来源的**全部文档**，分子是其中**至少命中一个词条**的文档；词条级命中数见
-  `term_hits_by_year.csv`（同一篇文档可命中多个词条，因此词条命中数之和 ≥ 文档数）。
+- `data/`：统计结果 CSV（UTF-8 with BOM，Excel 可直接打开）
+- `figures/`：可视化图表 PNG
+- `build_stats.py`：可复算脚本（读取 OpenAlex `works` 表、`data/patent/*.csv`、`data/policy/政策全文.jsonl`）
 
-## 文件
+## 一、论文（OpenAlex）
+
+本次共 **1,496,283 篇**（2021–2026）；2026 年截至语料快照（约 2026 年中），趋势图末年为不完整年度。
 
 | 文件 | 内容 |
 |---|---|
-| `coverage_by_source.csv` | 三源汇总：窗口、文档总数、命中文档数、命中率、口径备注 |
-| `coverage_by_year.csv` | 三源 × 2021–2026 分年：`total_docs` / `covered_docs` / `hit_rate` |
-| `term_hits_by_year.csv` | 词条 × 来源 × 年份的命中数（`paper` / `patent` / `policy`） |
+| `data/papers_by_year.csv` | 逐年发文量、占比 |
+| `data/papers_by_institution.csv` | Top 100 机构（`institutions` 字段按 `;` 拆分） |
+| `data/papers_by_journal.csv` | Top 20 期刊/来源 |
+| `data/papers_by_language.csv` | 语言分布 |
+| `data/papers_by_type.csv` | 文献类型（article / preprint 等） |
+| `data/papers_citations.csv` | 被引次数总体分布（总和/均值/中位数/P90/有引用占比） |
+| `figures/papers_overview.png` | 发文趋势、Top 机构、语言、类型四联图 |
+| `figures/papers_journals.png` | Top 20 期刊/来源 |
 
-## 各来源口径与 2026 注意
+**关于"地域分布"**：`works` 表只保留了机构名称（`institutions`），没有国家/地区字段，
+因此论文侧无法统计国家分布；机构与语言、期刊来源是可用的替代维度。若需要国家分布，
+需回到 `data/article/*.csv` 的 `raw_authorships`（含机构 `country_code`）重新关联。
 
-- **论文**：`analyze/data/independent_corpus.duckdb` 的 `works` 表，`is_retracted=false`，
-  窗口 2021-01-01 – 2026-12-31；按 `clean_title + clean_abstract` 匹配。
-  分年合计 **1,754,330** 篇，与 `docs/覆盖统计.md` 的 1,754,329 相差 1 篇（数据库版本微调），
-  覆盖率四舍五入后同为 85.3%。
-  `term_hits_by_year.csv` 的论文命中按季度汇总：分析窗是 2021Q3–2026Q2，因此 2021 只有 Q3–Q4、
-  2026 只有 Q1–Q2 的命中。
-- **专利**：`data/patent/*.csv`（含 2021–2026），按 `publication_number` 全局去重；
-  2021–2026 共 **538,066** 件，命中 **418,978** 件（77.9%）。
-  2026 仅 1–5 月完整（6–8 月零星），且来自 `patent_v3` 全量快照，收录口径与
-  2021–2025（按 IPC 小组 + OPS 导出）不同，**只用于覆盖统计，不用于跨年增速**。
-- **政策**：`data/policy/政策全文.jsonl`，要求正文 `text` 非空；2000–2026 共 **6,621** 条，
-  命中 **5,519** 条（83.4%）。2026 截至 2026-09；另有 61 条无日期记录（不计入分年表）。
+## 二、专利
 
-## 复算
+本次共 **418,978 件**（2021–2026，按公开号去重）。
 
-- 论文：`works` 表按年分批扫描 `clean_title + clean_abstract`，用上述词表做 Aho-Corasick 匹配，
-  统计"至少命中一个词条"的文档数。
-- 专利：逐 CSV 读取 `publication_number` / `publication_date` / `title` / `abstract`，按公开号去重后匹配。
-- 政策：逐行读取 JSONL，正文非空才计入；按 `publication_date`（缺则 `issue_date`）取年份。
-- 词条级命中明细来自 `energy-topic-hotspots` 的
-  `outputs/terms/papers_by_quarter.csv`、`patents_by_year.csv`、`policies_by_year.csv`，
-  `term_hits_by_year.csv` 是这三张表的合并版（论文按季度求和到年）。
+| 文件 | 内容 |
+|---|---|
+| `data/patents_by_year.csv` | 逐年公开量、占比 |
+| `data/patents_by_country.csv` | Top 80 公开国家/地区（`country_code`） |
+| `data/patents_by_assignee.csv` | Top 100 申请人（`assignees` 按 `\\|` 拆分） |
+| `data/patents_by_status.csv` | 法律状态分布（`status_normalized`） |
+| `data/patents_by_ipc.csv` | 6 个能源 IPC 小类分布（H01F/H02B/H02G/H02H/H02J/H02M） |
+| `data/patents_top_countries_by_year.csv` | Top 10 国家 × 年份（趋势用） |
+| `figures/patents_overview.png` | 年度趋势、Top 国家、Top 申请人、法律状态四联图 |
+
+口径提示：
+
+- 按 `publication_number` 全局去重；聚合表（2021_2023、2024_2025）优先于 IPC 分表。
+- `data/patent/2026.csv` 只包含出版号/日期/国家/标题/摘要，**没有申请人与法律状态字段**，
+  因此申请人、法律状态两项统计**不含 2026 年**；份额分母为"该字段有值的记录数"。
+- 2026 仅 1–5 月完整（6–8 月零星），且收录口径与 2021–2025 不同，趋势图出现回落属正常，
+  不能读作真实下降。
+
+## 三、政策
+
+本次共 **5,519 条**（2000–2026）命中词典；2026 年数据截至 2026-09。
+
+| 文件 | 内容 |
+|---|---|
+| `data/policies_by_year.csv` | 逐年政策量、占比（2000–2026；不含 56 条无日期） |
+| `data/policies_by_publisher.csv` | Top 80 发布机构（`publisher`） |
+| `data/policies_by_region.csv` | 适用区域（`applicable_region`） |
+| `data/policies_by_level.csv` | 行政层级（`administrative_level`） |
+| `data/policies_by_type.csv` | 政策类型（`policy_type`） |
+| `data/policies_by_relevance.csv` | 相关性分级（`relevance_tier`） |
+| `figures/policies_overview.png` | 年度趋势、Top 发布机构、区域、类型四联图 |
+
+2026 年政策截至 2026-09；另有 56 条命中词典但无日期（语料共 61 条无日期），未计入 `policies_by_year.csv`，因此分年表合计 5,463 条。
+
+## 四、复算
+
+```bash
+# 依赖：本机 OpenAlex works 库、data/patent、data/policy，以及 energy-topic-hotspots 的匹配实现
+python stats/build_stats.py            # 生成 data/*.csv + figures/*.png
+python stats/build_stats.py --no-fig   # 只出 CSV
+```
+
+匹配口径与 `energy-topic-hotspots/src/energy_hotspots/term_hotspots/extract_counts.py` 一致：
+Aho-Corasick、文档级去重、父子词条最长匹配抑制、短缩略语大小写敏感。
