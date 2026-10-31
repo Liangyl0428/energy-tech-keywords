@@ -45,6 +45,8 @@ POLICY_JSONL = WORKSPACE / "data" / "policy" / "政策全文.jsonl"
 OUT = ROOT / "stats" / "data"
 FIG = ROOT / "stats" / "figures"
 YEARS = [str(y) for y in range(2021, 2027)]
+# 专利统计只取 2021–2025：2026 仅 1–5 月完整且收录口径与往年不同
+PATENT_STAT_YEARS = [str(y) for y in range(2021, 2026)]
 PATENT_PREFIXES = ("H01F", "H02B", "H02G", "H02H", "H02J", "H02M")
 UNKNOWN = "(未标注)"
 
@@ -155,7 +157,7 @@ def scan_patent_chunk(df):
         if not pub:
             continue
         year = str(r.get("publication_date") or "")[:4]
-        if year not in YEARS:
+        if year not in PATENT_STAT_YEARS:
             continue
         ipc = str(r.get("ipc_prefix") or "") if "ipc_prefix" in cols else ""
         if not ipc and "ipcs" in cols:
@@ -321,7 +323,7 @@ def dump_patents(p):
     write_csv("patents_by_year.csv",
               ["year", "patents", "share"],
               [[y, p["by_year"].get(y, 0),
-                f"{p['by_year'].get(y, 0) / total:.4f}" if total else "0"] for y in YEARS])
+                f"{p['by_year'].get(y, 0) / total:.4f}" if total else "0"] for y in PATENT_STAT_YEARS])
     write_csv("patents_by_country.csv",
               ["rank", "country_code", "patents", "share"],
               top_rows(p["by_country"], 80))
@@ -339,7 +341,7 @@ def dump_patents(p):
     # 前 10 国家 × 年份
     top_countries = [c for c, _ in p["by_country"].most_common(10)]
     rows = []
-    for y in YEARS:
+    for y in PATENT_STAT_YEARS:
         for c in top_countries:
             rows.append([y, c, p["country_year"].get((y, c), 0)])
     write_csv("patents_top_countries_by_year.csv",
@@ -441,8 +443,8 @@ def make_figures():
     axes[0, 0].set_title("专利：逐年公开量（命中词典）")
     axes[0, 0].set_ylabel("件")
     if ys:
-        axes[0, 0].annotate("2026 仅 1–5 月", xy=(ys[-1], vals[-1]), ha="center",
-                           xytext=(0, 6), textcoords="offset points", fontsize=8)
+        axes[0, 0].annotate("2021–2025（2026 已排除）", xy=(0.02, 0.95),
+                           xycoords="axes fraction", fontsize=8)
     ctry = read_stat("patents_by_country.csv")[:15]
     axes[0, 1].barh([r["country_code"] for r in ctry][::-1],
                     [iv(r["patents"]) for r in ctry][::-1], color="#3b7dd8")
@@ -456,7 +458,7 @@ def make_figures():
     st = read_stat("patents_by_status.csv")
     axes[1, 1].pie([iv(r["patents"]) for r in st], labels=[r["status"] for r in st],
                    autopct="%1.1f%%")
-    axes[1, 1].set_title("专利：法律状态（2021–2025，2026 无该字段）")
+    axes[1, 1].set_title("专利：法律状态（2021–2025）")
     save(fig, "patents_overview.png")
 
     # 政策
@@ -486,12 +488,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-fig", action="store_true")
     ap.add_argument("--fig-only", action="store_true")
+    ap.add_argument("--patents-only", action="store_true")
     ap.add_argument("--workers", type=int, default=32)
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     if args.fig_only:
         make_figures()
         print("figures rebuilt from CSV")
+        return
+    if args.patents_only:
+        patents = scan_patents(args.workers)
+        dump_patents(patents)
+        if not args.no_fig:
+            make_figures()
+        print(json.dumps({"patents": patents["covered"]}, ensure_ascii=False))
         return
     papers = scan_papers(args.workers)
     patents = scan_patents(args.workers)
